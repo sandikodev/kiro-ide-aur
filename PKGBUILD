@@ -1,8 +1,8 @@
 # Maintainer: sandikodev <androxoss at hotmail dot com>
 
 pkgname=kiro-ide-bin
-pkgver=0.11.130
-pkgrel=2
+pkgver=0.11.131
+pkgrel=1
 epoch=1
 pkgdesc='An agentic AI IDE with spec-driven development from prototype to production'
 arch=(x86_64)
