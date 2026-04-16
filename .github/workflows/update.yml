@@ -2,76 +2,91 @@ name: Update kiro-ide-bin
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # every 6 hours
+    - cron: '0 */6 * * *'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Force specific version (leave empty for latest)'
+        required: false
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      latest: ${{ steps.check.outputs.latest }}
+      current: ${{ steps.check.outputs.current }}
+      needs_update: ${{ steps.check.outputs.needs_update }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check version
+        id: check
+        run: |
+          LATEST=${{ github.event.inputs.version || '$(curl -s https://prod.download.desktop.kiro.dev/stable/metadata-linux-x64-stable.json | jq -r .currentRelease)' }}
+          LATEST=$(curl -s https://prod.download.desktop.kiro.dev/stable/metadata-linux-x64-stable.json | jq -r .currentRelease)
+          [[ -n "${{ github.event.inputs.version }}" ]] && LATEST="${{ github.event.inputs.version }}"
+          CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          [[ "$LATEST" != "$CURRENT" ]] && echo "needs_update=true" >> $GITHUB_OUTPUT || echo "needs_update=false" >> $GITHUB_OUTPUT
+          echo "Latest: $LATEST | Current: $CURRENT"
+
   update:
+    needs: check
+    if: needs.check.outputs.needs_update == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check latest version
-        id: version
-        run: |
-          LATEST=$(curl -s https://prod.download.desktop.kiro.dev/stable/metadata-linux-x64-stable.json | jq -r .currentRelease)
-          CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
-          echo "latest=$LATEST" >> $GITHUB_OUTPUT
-          echo "current=$CURRENT" >> $GITHUB_OUTPUT
-          echo "Latest: $LATEST, Current: $CURRENT"
-
-      - name: Update PKGBUILD
-        if: steps.version.outputs.latest != steps.version.outputs.current
+      - name: Download sources and compute hashes
         env:
-          VERSION: ${{ steps.version.outputs.latest }}
+          VERSION: ${{ needs.check.outputs.latest }}
         run: |
           BASE="https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/${VERSION}/tar"
-
-          # Download files for hashing
-          curl -sL "$BASE/kiro-ide-${VERSION}-stable-linux-x64.tar.gz" -o kiro.tar.gz
+          curl -L "$BASE/kiro-ide-${VERSION}-stable-linux-x64.tar.gz" -o kiro.tar.gz
           curl -sL "$BASE/signature.bin" -o signature.bin
           curl -sL "$BASE/certificate.pem" -o certificate.pem
 
-          # Compute b2sums
-          B2_TAR=$(b2sum kiro.tar.gz | cut -d' ' -f1)
-          B2_SIG=$(b2sum signature.bin | cut -d' ' -f1)
-          B2_CERT=$(b2sum certificate.pem | cut -d' ' -f1)
-          B2_LIC=$(b2sum Kiro-LICENSE.txt | cut -d' ' -f1)
+          # Verify signature
+          openssl x509 -pubkey -noout -in certificate.pem > pubkey.pem
+          openssl dgst -sha256 -verify pubkey.pem -signature signature.bin kiro.tar.gz
 
-          # Update pkgver and pkgrel
+          echo "B2_TAR=$(b2sum kiro.tar.gz | cut -d' ' -f1)" >> $GITHUB_ENV
+          echo "B2_SIG=$(b2sum signature.bin | cut -d' ' -f1)" >> $GITHUB_ENV
+          echo "B2_CERT=$(b2sum certificate.pem | cut -d' ' -f1)" >> $GITHUB_ENV
+          echo "B2_LIC=$(b2sum Kiro-LICENSE.txt | cut -d' ' -f1)" >> $GITHUB_ENV
+
+      - name: Patch PKGBUILD
+        env:
+          VERSION: ${{ needs.check.outputs.latest }}
+        run: |
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
-
-          # Update b2sums array
           python3 - <<EOF
           import re
-
-          with open('PKGBUILD', 'r') as f:
+          with open('PKGBUILD') as f:
               content = f.read()
-
-          new_b2sums = f"""b2sums=('{B2_TAR}'
-          '{B2_SIG}'
-          '{B2_CERT}'
-          '{B2_LIC}')"""
-
+          new_b2sums = """b2sums=('$B2_TAR'
+                  '$B2_SIG'
+                  '$B2_CERT'
+                  '$B2_LIC')"""
           content = re.sub(r"b2sums=\(.*?\)", new_b2sums, content, flags=re.DOTALL)
-
           with open('PKGBUILD', 'w') as f:
               f.write(content)
           EOF
 
-          rm kiro.tar.gz signature.bin certificate.pem
-
       - name: Generate .SRCINFO
-        if: steps.version.outputs.latest != steps.version.outputs.current
         uses: docker://archlinux:latest
         with:
           args: bash -c "pacman -Sy --noconfirm base-devel && cd /github/workspace && makepkg --printsrcinfo > .SRCINFO"
 
+      - name: Lint with namcap
+        uses: docker://archlinux:latest
+        with:
+          args: bash -c "pacman -Sy --noconfirm namcap && cd /github/workspace && namcap PKGBUILD"
+
       - name: Commit and push to GitHub
-        if: steps.version.outputs.latest != steps.version.outputs.current
         env:
-          VERSION: ${{ steps.version.outputs.latest }}
+          VERSION: ${{ needs.check.outputs.latest }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -80,7 +95,6 @@ jobs:
           git push
 
       - name: Push to AUR
-        if: steps.version.outputs.latest != steps.version.outputs.current
         env:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |
@@ -93,5 +107,19 @@ jobs:
             User aur
             StrictHostKeyChecking no
           EOF
-          git remote add aur ssh://aur@aur.archlinux.org/kiro-ide-bin.git
+          git remote add aur ssh://aur@aur.archlinux.org/kiro-ide-bin.git || true
           git push aur main:master
+
+  notify:
+    needs: [check, update]
+    if: always() && needs.check.outputs.needs_update == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          if [[ "${{ needs.update.result }}" == "success" ]]; then
+            echo "✅ Successfully updated to ${{ needs.check.outputs.latest }}"
+          else
+            echo "❌ Update to ${{ needs.check.outputs.latest }} failed"
+            exit 1
+          fi

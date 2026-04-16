@@ -1,7 +1,7 @@
 pkgbase = kiro-ide-bin
 	pkgdesc = An agentic AI IDE with spec-driven development from prototype to production
-	pkgver = 0.11.130
-	pkgrel = 2
+	pkgver = 0.11.131
+	pkgrel = 1
 	epoch = 1
 	url = https://kiro.dev/
 	arch = x86_64
@@ -42,12 +42,12 @@ pkgbase = kiro-ide-bin
 	conflicts = kiro-ide-deb
 	options = !debug
 	options = !strip
-	source = kiro-ide-0.11.130.tar.gz::https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/0.11.130/tar/kiro-ide-0.11.130-stable-linux-x64.tar.gz
-	source = kiro-ide-0.11.130-tar-signature.bin::https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/0.11.130/tar/signature.bin
-	source = kiro-ide-0.11.130-certificate.pem::https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/0.11.130/tar/certificate.pem
+	source = kiro-ide-0.11.131.tar.gz::https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/0.11.131/tar/kiro-ide-0.11.131-stable-linux-x64.tar.gz
+	source = kiro-ide-0.11.131-tar-signature.bin::https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/0.11.131/tar/signature.bin
+	source = kiro-ide-0.11.131-certificate.pem::https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/0.11.131/tar/certificate.pem
 	source = Kiro-LICENSE.txt
-	b2sums = 6702966b9eeff3603e83dd3b83380d057c55778587753500c1af60db0c4edc08d120a5851cf3ef3f2972f7e128abba09e17b9630e81e0c70b8dc4346367f3e33
-	b2sums = 416a2bc69782564765f36085214766b13ab8ab1a4d3644e75876311637f93e6f735498d6cfb112410b4260ed378de1a9269ab3f3a3bdfd494fac047d91e442c4
+	b2sums = e329d9f88384f0376b520b9e47a61579479bb957d9719fcc1b4bfda83ea8de435455fcce0ca502ae7fd30d2d3fe1d9e809bcc97682ec6f341015dd56c1676274
+	b2sums = 19c922bc8ed73696bc8a3ee0b047cdb1ee070dd4c7aea7004ab5bcc45c89dc47a28641fa1b061166d23c55a4516b6dc3ecbde03b0711b3f0e56a954b9be7158a
 	b2sums = 4cba4d51523a883653b28e04abc4a0e444d7672636153be9c99058b4469137ab2c591466d9452c5471e1577c6ce9a54edca28f14c01e6d66b36b72eb53f92bc8
 	b2sums = cdf6d0032fa207b2a54079a5680557cff053daa63ae21ec312272b0b84740ff6a88688f37300ad382c7005d22c1d1abbd083eaa017b9259e6e71fb3f3a7b7838
 

@@ -1,0 +1,43 @@
+name: Validate PKGBUILD
+
+on:
+  push:
+    paths: ['PKGBUILD', '.SRCINFO']
+  pull_request:
+    paths: ['PKGBUILD', '.SRCINFO']
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: pacman -Sy --noconfirm base-devel namcap
+
+      - name: namcap lint
+        run: namcap PKGBUILD
+
+      - name: Check .SRCINFO in sync
+        run: |
+          makepkg --printsrcinfo > .SRCINFO.generated
+          diff .SRCINFO .SRCINFO.generated || (echo "ERROR: .SRCINFO out of sync" && exit 1)
+
+      - name: Validate b2sums format
+        run: |
+          python3 - <<'EOF'
+          import re, sys
+          with open('PKGBUILD') as f:
+              content = f.read()
+          match = re.search(r"b2sums=\((.*?)\)", content, re.DOTALL)
+          if not match:
+              print("ERROR: b2sums not found")
+              sys.exit(1)
+          hashes = re.findall(r"'([a-f0-9]+)'", match.group(1))
+          for h in hashes:
+              if len(h) != 128:
+                  print(f"ERROR: invalid b2sum length: {h[:20]}...")
+                  sys.exit(1)
+          print(f"b2sums OK: {len(hashes)} hashes validated")
+          EOF
